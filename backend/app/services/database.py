@@ -9,6 +9,9 @@ from app.core.config import get_settings
 
 
 def _normalize_database_url(url: str) -> str:
+    url = (url or "").strip().strip("\"'")
+    if not url:
+        return "sqlite:///./roadsense.db"
     if url.startswith("postgres://"):
         return url.replace("postgres://", "postgresql+psycopg2://", 1)
     if url.startswith("postgresql://"):
