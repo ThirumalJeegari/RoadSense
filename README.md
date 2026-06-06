@@ -558,6 +558,5 @@ Use this flow during a hackathon presentation:
 - Add mobile app
 - Add route alternatives and fuel/time savings
 
-## License
-
-This project is created for learning and hackathon use.
+## Author
+Jeegari Thirumal
