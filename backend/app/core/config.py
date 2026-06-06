@@ -17,6 +17,12 @@ class Settings:
     request_timeout_seconds: float = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "15"))
     tomtom_api_key: str = os.getenv("TOMTOM_API_KEY", "")
     soda_app_token: str = os.getenv("SODA_APP_TOKEN", "")
+    razorpay_key_id: str = os.getenv("RAZORPAY_KEY_ID", "")
+    razorpay_key_secret: str = os.getenv("RAZORPAY_KEY_SECRET", "")
+    razorpay_prime_plan_id: str = os.getenv("RAZORPAY_PRIME_PLAN_ID", "")
+    razorpay_prime_total_count: int = int(os.getenv("RAZORPAY_PRIME_TOTAL_COUNT", "12"))
+    auth_token_secret: str = os.getenv("AUTH_TOKEN_SECRET", "smart-cities-dev-secret-change-me")
+    auth_token_ttl_seconds: int = int(os.getenv("AUTH_TOKEN_TTL_SECONDS", "86400"))
     cors_origins: tuple[str, ...] = tuple(
         origin.strip()
         for origin in os.getenv(
@@ -30,4 +36,3 @@ class Settings:
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

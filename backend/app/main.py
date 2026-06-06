@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Optional
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Body, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.schemas import HealthResponse
+from app.services.auth import activate_prime_user, login_user, signup_user, user_from_authorization
 from app.services.india_locations import list_india_locations
 from app.services.parking import parking_snapshot
+from app.services.payments import create_prime_subscription, prime_plan_status
 from app.services.road_damage import analyze_road_image
 from app.services.traffic import traffic_route, traffic_snapshot
 from app.services.weather import current_weather
@@ -39,6 +42,76 @@ async def root() -> dict:
 @app.get(f"{settings.api_prefix}/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(service=settings.app_name)
+
+
+@app.post(f"{settings.api_prefix}/auth/login")
+async def login(payload: Optional[dict] = Body(default=None)) -> dict:
+    try:
+        return login_user(payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post(f"{settings.api_prefix}/auth/signup")
+async def signup(payload: Optional[dict] = Body(default=None)) -> dict:
+    try:
+        return signup_user(payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get(f"{settings.api_prefix}/auth/me")
+async def me(authorization: Optional[str] = Header(default=None)) -> dict:
+    try:
+        return {"user": user_from_authorization(authorization)}
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+@app.post(f"{settings.api_prefix}/auth/logout")
+async def logout() -> dict:
+    return {"status": "logged_out"}
+
+
+@app.get(f"{settings.api_prefix}/subscriptions/prime")
+async def prime_subscription_status() -> dict:
+    return prime_plan_status()
+
+
+@app.post(f"{settings.api_prefix}/subscriptions/prime")
+async def prime_subscription(
+    payload: Optional[dict] = Body(default=None),
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    try:
+        customer = payload or {}
+        if authorization:
+            user = user_from_authorization(authorization)
+            customer = {
+                **customer,
+                "name": customer.get("name") or user.get("name"),
+                "email": customer.get("email") or user.get("email"),
+                "account_email": user.get("email"),
+            }
+        return await create_prime_subscription(customer)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post(f"{settings.api_prefix}/subscriptions/prime/activate-demo")
+async def activate_prime_demo(authorization: Optional[str] = Header(default=None)) -> dict:
+    try:
+        return activate_prime_user(
+            authorization,
+            {
+                "mode": "demo",
+                "subscription_id": "demo_prime_subscription",
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
 
 
 @app.get(f"{settings.api_prefix}/weather")
