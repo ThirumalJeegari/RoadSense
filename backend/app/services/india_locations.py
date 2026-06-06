@@ -48,6 +48,14 @@ INDIA_LOCATIONS = [
     {"name": "Visakhapatnam", "state": "Andhra Pradesh", "latitude": 17.6868, "longitude": 83.2185},
 ]
 
+LOCATION_ALIASES = {
+    "blr": "Bengaluru",
+    "bangalore": "Bengaluru",
+    "bombay": "Mumbai",
+    "calcutta": "Kolkata",
+    "madras": "Chennai",
+}
+
 
 def list_india_locations() -> list[dict]:
     return sorted(INDIA_LOCATIONS, key=lambda item: (item["state"], item["name"]))
@@ -55,14 +63,43 @@ def list_india_locations() -> list[dict]:
 
 def find_india_location(query: str) -> dict | None:
     normalized = _normalize(query)
+    if not normalized:
+        return None
+    normalized = _normalize(LOCATION_ALIASES.get(normalized, normalized))
+
+    if len(normalized) >= 3:
+        for alias, canonical_name in LOCATION_ALIASES.items():
+            if alias.startswith(normalized):
+                normalized = _normalize(canonical_name)
+                break
+
     for location in INDIA_LOCATIONS:
         if _normalize(location["name"]) == normalized:
             return location
         if _normalize(f"{location['name']}, {location['state']}") == normalized:
             return location
+
+    if len(normalized) < 3:
+        return None
+
+    scored_matches = []
+    query_tokens = normalized.split()
+    for index, location in enumerate(INDIA_LOCATIONS):
+        name = _normalize(location["name"])
+        state = _normalize(location["state"])
+        label = _normalize(f"{location['name']} {location['state']}")
+        target_tokens = label.split()
+        if name.startswith(normalized):
+            scored_matches.append((0, len(name), index, location))
+        elif all(any(token.startswith(query_token) for token in target_tokens) for query_token in query_tokens):
+            scored_matches.append((1, len(label), index, location))
+        elif normalized in name or normalized in state:
+            scored_matches.append((2, len(label), index, location))
+
+    if scored_matches:
+        return sorted(scored_matches, key=lambda item: item[:3])[0][3]
     return None
 
 
 def _normalize(value: str) -> str:
     return " ".join(value.lower().replace(",", " ").split())
-

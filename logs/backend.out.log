@@ -1,6 +1,4 @@
-INFO:     127.0.0.1:49726 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58455 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61999 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52285 - "POST /api/auth/signup HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52285 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52322 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53638 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54171 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54172 - "GET /api/location-search?q=Mumb&limit=3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54170 - "GET /api/traffic-route?start=Mumb&end=Pune HTTP/1.1" 200 OK
