@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.schemas import HealthResponse
 from app.services.auth import activate_prime_user, login_user, signup_user, user_from_authorization
+from app.services.geo import search_india_locations
 from app.services.india_locations import list_india_locations
 from app.services.parking import parking_snapshot
 from app.services.payments import create_prime_subscription, prime_plan_status
@@ -22,7 +23,7 @@ settings = get_settings()
 app = FastAPI(
     title=settings.app_name,
     version="1.0.0",
-    description="Smart Cities API for traffic management, parking intelligence, and road damage detection.",
+    description="RoadSense API for traffic management, parking intelligence, and road damage detection.",
 )
 
 app.add_middleware(
@@ -133,6 +134,17 @@ async def traffic(city: str = Query("Bengaluru", min_length=2)) -> dict:
 @app.get(f"{settings.api_prefix}/india-locations")
 async def india_locations() -> dict:
     return {"locations": list_india_locations()}
+
+
+@app.get(f"{settings.api_prefix}/location-search")
+async def location_search(
+    q: str = Query(..., min_length=2),
+    limit: int = Query(8, ge=1, le=12),
+) -> dict:
+    try:
+        return {"locations": await search_india_locations(q, limit=limit)}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.get(f"{settings.api_prefix}/traffic-route")

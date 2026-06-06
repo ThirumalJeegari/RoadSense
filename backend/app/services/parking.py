@@ -32,7 +32,7 @@ async def parking_snapshot(provider: str = "india", limit: int = 180, city: str 
 
 
 async def _india_parking(city: str, limit: int) -> dict:
-    limit = max(25, min(limit, 300))
+    limit = max(25, min(limit, 1000))
     location = await geocode_india_location(city)
     key = f"parking:india:{location['latitude']}:{location['longitude']}:{limit}"
     cached = cache.get(key)
@@ -48,7 +48,7 @@ async def _india_parking(city: str, limit: int) -> dict:
                 response = await client.post(
                     url,
                     data={"data": query},
-                    headers={"Accept": "application/json", "User-Agent": "SmartCitiesHackathon/1.0"},
+                    headers={"Accept": "application/json", "User-Agent": "RoadSenseHackathon/1.0"},
                 )
                 response.raise_for_status()
                 elements = response.json().get("elements", [])
@@ -183,8 +183,12 @@ def _overpass_query(latitude: float, longitude: float, limit: int) -> str:
     radius_meters = 12000
     return (
         f"[out:json][timeout:12];"
+        f"("
         f"node[\"amenity\"=\"parking\"](around:{radius_meters},{latitude},{longitude});"
-        f"out body {limit};"
+        f"way[\"amenity\"=\"parking\"](around:{radius_meters},{latitude},{longitude});"
+        f"relation[\"amenity\"=\"parking\"](around:{radius_meters},{latitude},{longitude});"
+        f");"
+        f"out center {limit};"
     )
 
 

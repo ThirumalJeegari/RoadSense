@@ -33,10 +33,6 @@ function query(params) {
   return new URLSearchParams(params).toString();
 }
 
-export function getHealth(baseUrl) {
-  return request(baseUrl, "/api/health");
-}
-
 export function login(baseUrl, payload) {
   return request(baseUrl, "/api/auth/login", {
     method: "POST",
@@ -65,6 +61,10 @@ export function logout(baseUrl, token) {
 
 export function getIndiaLocations(baseUrl) {
   return request(baseUrl, "/api/india-locations");
+}
+
+export function searchIndiaLocations(baseUrl, search, limit = 8) {
+  return request(baseUrl, `/api/location-search?${query({ q: search, limit })}`);
 }
 
 export function getParking(baseUrl, params) {

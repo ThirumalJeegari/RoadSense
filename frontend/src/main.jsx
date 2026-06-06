@@ -20,13 +20,13 @@ import {
   activatePrimeDemo,
   createPrimeSubscription,
   getMe,
-  getHealth,
   getIndiaLocations,
   getInitialBackendUrl,
   getParking,
   getTrafficRoute,
   login,
   logout,
+  searchIndiaLocations,
   signup,
 } from "./services/api.js";
 import { routeDamageReport } from "./utils/roadDamage.js";
@@ -66,15 +66,6 @@ function navigateToPage(page) {
   window.location.hash = `#/${page}`;
 }
 
-function formatTime(value) {
-  if (!value) return "Not loaded";
-  return new Intl.DateTimeFormat("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(value);
-}
-
 function locationLabel(location) {
   return `${location.name}, ${location.state}`;
 }
@@ -85,18 +76,18 @@ function uniqueLocationName(name, fallback) {
 
 function getStoredAuth() {
   try {
-    return JSON.parse(localStorage.getItem("smartCitiesAuth") || "null");
+    return JSON.parse(localStorage.getItem("roadSenseAuth") || "null");
   } catch {
     return null;
   }
 }
 
 function saveStoredAuth(auth) {
-  localStorage.setItem("smartCitiesAuth", JSON.stringify(auth));
+  localStorage.setItem("roadSenseAuth", JSON.stringify(auth));
 }
 
 function clearStoredAuth() {
-  localStorage.removeItem("smartCitiesAuth");
+  localStorage.removeItem("roadSenseAuth");
 }
 
 function profileValue(value, fallback = "Not set") {
@@ -108,6 +99,59 @@ function titleValue(value) {
     .split(" ")
     .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : part))
     .join(" ");
+}
+
+function locationOptionLabel(location) {
+  return location.display_name || [location.name, location.admin1, location.country].filter(Boolean).join(", ");
+}
+
+function LocationDatalist({ id, suggestions }) {
+  return (
+    <datalist id={id}>
+      {suggestions.map((location) => {
+        const label = locationOptionLabel(location);
+        return (
+          <option
+            value={label}
+            key={`${label}-${location.latitude}-${location.longitude}`}
+          />
+        );
+      })}
+    </datalist>
+  );
+}
+
+function useIndiaLocationSuggestions(backendUrl, search, enabled) {
+  const [suggestions, setSuggestions] = useState([]);
+
+  useEffect(() => {
+    const query = search.trim();
+    if (!enabled || query.length < 3) {
+      setSuggestions([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const id = window.setTimeout(async () => {
+      try {
+        const response = await searchIndiaLocations(backendUrl, query, 8);
+        if (!cancelled) {
+          setSuggestions(response.locations || []);
+        }
+      } catch {
+        if (!cancelled) {
+          setSuggestions([]);
+        }
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
+  }, [backendUrl, enabled, search]);
+
+  return suggestions;
 }
 
 function MetricCard({ icon: Icon, label, value, note, tone = "blue" }) {
@@ -584,7 +628,7 @@ function LoginPage({ auth, onLogin, onLogout, loading, onGoSignup, onGoSubscript
     <section className="page-grid">
       <div className="page-card login-hero-card">
         <span className="page-kicker">Secure Access</span>
-        <h3>Login to manage Smart Cities Prime</h3>
+        <h3>Login to manage RoadSense Prime</h3>
         <p>
           Sign in with your operator account before starting the Razorpay Prime subscription.
         </p>
@@ -610,7 +654,7 @@ function SignupPage({ auth, onSignup, loading, onGoLogin, onGoSubscription }) {
     <section className="page-grid">
       <div className="page-card signup-hero-card">
         <span className="page-kicker">New Operator</span>
-        <h3>Create your Smart Cities account</h3>
+        <h3>Create your RoadSense account</h3>
         <p>
           Register once, then use the same account for dashboard access and Razorpay Prime subscription.
         </p>
@@ -663,7 +707,7 @@ function AccessRequiredPage({ onGoLogin, onGoSignup }) {
         <span className="page-kicker">Login Required</span>
         <h3>Login before opening the operations dashboard</h3>
         <p>
-          Smart Cities dashboard data is protected. Use your operator account to access live traffic,
+          RoadSense dashboard data is protected. Use your operator account to access live traffic,
           parking, and road damage controls.
         </p>
         <div className="welcome-actions">
@@ -717,7 +761,7 @@ function HomePage({ auth, onGoDashboard, onGoSignup, onGoSubscription, onLogout,
             <span className="page-kicker">Welcome</span>
             <h3>Welcome, {profileValue(auth.user.name, "Operator")}</h3>
             <p>
-              Your Smart Cities operator profile is active. Continue from here to monitor routes,
+              Your RoadSense operator profile is active. Continue from here to monitor routes,
               parking slots, and road damage data.
             </p>
             <div className="welcome-actions">
@@ -839,9 +883,9 @@ function SiteHeader({ activePage, auth }) {
 
   return (
     <header className="site-header">
-      <button className="site-logo" onClick={() => navigateToPage("home")} aria-label="Smart Cities home">
+      <button className="site-logo" onClick={() => navigateToPage("home")} aria-label="RoadSense home">
         <span><Building2 size={22} /></span>
-        <strong>Smart Cities</strong>
+        <strong>RoadSense</strong>
       </button>
       <nav className="site-nav" aria-label="Main navigation">
         {navItems.map(([page, label]) => (
@@ -888,10 +932,10 @@ function App() {
   const [endLocation, setEndLocation] = useState("Bengaluru");
   const [parkingCity, setParkingCity] = useState("Bengaluru");
   const [parkingLimit, setParkingLimit] = useState(160);
-  const [locationMode, setLocationMode] = useState("city");
+  const [locationMode, setLocationMode] = useState("manual");
   const [customStart, setCustomStart] = useState("MG Road, Bengaluru");
   const [customEnd, setCustomEnd] = useState("Indiranagar, Bengaluru");
-  const [parkingMode, setParkingMode] = useState("city");
+  const [parkingMode, setParkingMode] = useState("manual");
   const [customParkingCity, setCustomParkingCity] = useState("Commercial Street, Bengaluru");
   const [surveyMode, setSurveyMode] = useState("Routine survey");
   const [surveyPriority, setSurveyPriority] = useState("Priority corridors");
@@ -901,10 +945,8 @@ function App() {
   const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(90);
   const [parkingData, setParkingData] = useState(null);
   const [route, setRoute] = useState(null);
-  const [health, setHealth] = useState("checking");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [lastUpdated, setLastUpdated] = useState(null);
 
   const selectedStart = locationMode === "manual" ? uniqueLocationName(customStart, "Chennai") : startLocation;
   const selectedEnd = locationMode === "manual" ? uniqueLocationName(customEnd, "Bengaluru") : endLocation;
@@ -912,6 +954,21 @@ function App() {
     parkingMode === "manual" ? uniqueLocationName(customParkingCity, "Bengaluru") : parkingCity;
   const isAuthenticated = Boolean(auth?.user);
   const isPrime = auth?.user?.plan === "prime";
+  const startSuggestions = useIndiaLocationSuggestions(
+    backendUrl,
+    customStart,
+    activePage === "dashboard" && isAuthenticated && locationMode === "manual",
+  );
+  const endSuggestions = useIndiaLocationSuggestions(
+    backendUrl,
+    customEnd,
+    activePage === "dashboard" && isAuthenticated && locationMode === "manual",
+  );
+  const parkingSuggestions = useIndiaLocationSuggestions(
+    backendUrl,
+    customParkingCity,
+    activePage === "dashboard" && isAuthenticated && parkingMode === "manual",
+  );
 
   useEffect(() => {
     const syncPage = () => setActivePage(pageFromHash());
@@ -922,6 +979,12 @@ function App() {
     syncPage();
     return () => window.removeEventListener("hashchange", syncPage);
   }, []);
+
+  useEffect(() => {
+    if (activePage === "dashboard") {
+      setActiveTab("overview");
+    }
+  }, [activePage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1015,16 +1078,12 @@ function App() {
   const loadOperations = useCallback(async () => {
     if (!isAuthenticated) {
       setLoading(false);
-      setHealth("checking");
       return;
     }
 
     setLoading(true);
     setError("");
     try {
-      const healthResponse = await getHealth(backendUrl);
-      setHealth(healthResponse?.service ? "online" : "online");
-
       const [parkingResponse, routeResponse] = await Promise.all([
         getParking(backendUrl, {
           provider: "india",
@@ -1038,9 +1097,7 @@ function App() {
 
       setParkingData(parkingResponse);
       setRoute(routeResponse);
-      setLastUpdated(new Date());
     } catch (loadError) {
-      setHealth("offline");
       setError(loadError.message);
     } finally {
       setLoading(false);
@@ -1264,7 +1321,7 @@ function App() {
               <Building2 size={24} />
             </div>
             <div>
-              <h1>Smart Cities</h1>
+              <h1>RoadSense</h1>
               <p>India operations dashboard</p>
             </div>
           </div>
@@ -1280,18 +1337,23 @@ function App() {
             <label>
               Search mode
               <select value={locationMode} onChange={(event) => setLocationMode(event.target.value)}>
-                <option value="city">City to city</option>
-                <option value="manual">Manual street / gully</option>
+                <option value="manual">Map search</option>
+                <option value="city">City quick list</option>
               </select>
             </label>
             <label>
               Origin
               {locationMode === "manual" ? (
-                <input
-                  value={customStart}
-                  onChange={(event) => setCustomStart(event.target.value)}
-                  placeholder="MG Road, Bengaluru"
-                />
+                <>
+                  <input
+                    value={customStart}
+                    onChange={(event) => setCustomStart(event.target.value)}
+                    list="start-location-suggestions"
+                    autoComplete="off"
+                    placeholder="Village, road, gully, district"
+                  />
+                  <LocationDatalist id="start-location-suggestions" suggestions={startSuggestions} />
+                </>
               ) : (
                 <select value={startLocation} onChange={(event) => setStartLocation(event.target.value)}>
                   {locations.map((location) => (
@@ -1305,11 +1367,16 @@ function App() {
             <label>
               Destination
               {locationMode === "manual" ? (
-                <input
-                  value={customEnd}
-                  onChange={(event) => setCustomEnd(event.target.value)}
-                  placeholder="Indiranagar, Bengaluru"
-                />
+                <>
+                  <input
+                    value={customEnd}
+                    onChange={(event) => setCustomEnd(event.target.value)}
+                    list="end-location-suggestions"
+                    autoComplete="off"
+                    placeholder="Village, road, gully, district"
+                  />
+                  <LocationDatalist id="end-location-suggestions" suggestions={endSuggestions} />
+                </>
               ) : (
                 <select value={endLocation} onChange={(event) => setEndLocation(event.target.value)}>
                   {locations.map((location) => (
@@ -1333,18 +1400,23 @@ function App() {
             <label>
               Parking search
               <select value={parkingMode} onChange={(event) => setParkingMode(event.target.value)}>
-                <option value="city">City area</option>
-                <option value="manual">Manual locality / gully</option>
+                <option value="manual">Map search</option>
+                <option value="city">City quick list</option>
               </select>
             </label>
             <label>
               Parking area
               {parkingMode === "manual" ? (
-                <input
-                  value={customParkingCity}
-                  onChange={(event) => setCustomParkingCity(event.target.value)}
-                  placeholder="Commercial Street, Bengaluru"
-                />
+                <>
+                  <input
+                    value={customParkingCity}
+                    onChange={(event) => setCustomParkingCity(event.target.value)}
+                    list="parking-location-suggestions"
+                    autoComplete="off"
+                    placeholder="Village, road, gully, locality"
+                  />
+                  <LocationDatalist id="parking-location-suggestions" suggestions={parkingSuggestions} />
+                </>
               ) : (
                 <select value={parkingCity} onChange={(event) => setParkingCity(event.target.value)}>
                   {locations.map((location) => (
@@ -1442,12 +1514,8 @@ function App() {
           {isDashboardPage ? (
             <header className="topbar">
               <div>
-                <span className={`api-state ${health}`}>{health === "online" ? "API online" : "API offline"}</span>
                 <h2>Operations Dashboard</h2>
                 <p>Traffic, parking, and road damage intelligence for Indian city routes.</p>
-              </div>
-              <div className="top-actions">
-                <span>Updated {formatTime(lastUpdated)}</span>
               </div>
             </header>
           ) : null}

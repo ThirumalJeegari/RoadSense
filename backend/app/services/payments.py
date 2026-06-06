@@ -23,7 +23,7 @@ def prime_plan_status() -> dict:
         and settings.razorpay_prime_plan_id
     )
     return {
-        "plan": "Smart Cities Prime",
+        "plan": "RoadSense Prime",
         "provider": "Razorpay",
         "configured": configured,
         "plan_id_set": bool(settings.razorpay_prime_plan_id),
@@ -51,7 +51,7 @@ async def create_prime_subscription(customer: dict | None = None) -> dict:
         "quantity": 1,
         "customer_notify": True,
         "notes": {
-            "product": "Smart Cities Prime",
+            "product": "RoadSense Prime",
             "customer_name": str(customer.get("name", ""))[:120],
             "customer_email": str(customer.get("email", ""))[:120],
         },
