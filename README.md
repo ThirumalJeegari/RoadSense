@@ -181,6 +181,8 @@ Uvicorn
 HTTPX
 python-dotenv
 python-multipart
+SQLAlchemy
+psycopg2-binary
 Pillow
 NumPy
 OpenCV headless
@@ -194,6 +196,8 @@ OpenStreetMap Overpass - Parking data
 OSRM - Route geometry
 TomTom API - Optional live traffic support
 Razorpay - Optional Prime subscription support
+SQLite - Local database
+PostgreSQL - Render/production database
 Render - Deployment
 ```
 
@@ -201,41 +205,42 @@ Render - Deployment
 
 ```txt
 RoadSense/
-├── backend/
-│   ├── app/
-│   │   ├── core/
-│   │   │   └── config.py
-│   │   ├── services/
-│   │   │   ├── auth.py
-│   │   │   ├── cache.py
-│   │   │   ├── geo.py
-│   │   │   ├── india_locations.py
-│   │   │   ├── parking.py
-│   │   │   ├── payments.py
-│   │   │   ├── road_damage.py
-│   │   │   ├── traffic.py
-│   │   │   └── weather.py
-│   │   ├── main.py
-│   │   └── schemas.py
-│   ├── requirements.txt
-│   ├── render.yaml
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   └── MapPanel.jsx
-│   │   ├── services/
-│   │   │   └── api.js
-│   │   ├── utils/
-│   │   │   └── roadDamage.js
-│   │   ├── main.jsx
-│   │   └── styles.css
-│   ├── index.html
-│   ├── package.json
-│   ├── package-lock.json
-│   ├── vite.config.js
-│   └── .env.example
-└── README.md
+|-- backend/
+|   |-- app/
+|   |   |-- core/
+|   |   |   `-- config.py
+|   |   |-- services/
+|   |   |   |-- auth.py
+|   |   |   |-- cache.py
+|   |   |   |-- database.py
+|   |   |   |-- geo.py
+|   |   |   |-- india_locations.py
+|   |   |   |-- parking.py
+|   |   |   |-- payments.py
+|   |   |   |-- road_damage.py
+|   |   |   |-- traffic.py
+|   |   |   `-- weather.py
+|   |   |-- main.py
+|   |   `-- schemas.py
+|   |-- requirements.txt
+|   |-- render.yaml
+|   `-- .env.example
+|-- frontend/
+|   |-- src/
+|   |   |-- components/
+|   |   |   `-- MapPanel.jsx
+|   |   |-- services/
+|   |   |   `-- api.js
+|   |   |-- utils/
+|   |   |   `-- roadDamage.js
+|   |   |-- main.jsx
+|   |   `-- styles.css
+|   |-- index.html
+|   |-- package.json
+|   |-- package-lock.json
+|   |-- vite.config.js
+|   `-- .env.example
+`-- README.md
 ```
 
 ## Backend API
@@ -312,6 +317,7 @@ RAZORPAY_PRIME_PLAN_ID=
 RAZORPAY_PRIME_TOTAL_COUNT=12
 AUTH_TOKEN_SECRET=change_this_to_a_long_random_secret
 AUTH_TOKEN_TTL_SECONDS=86400
+DATABASE_URL=sqlite:///./roadsense.db
 ```
 
 Explanation:
@@ -327,6 +333,7 @@ Explanation:
 | `RAZORPAY_PRIME_TOTAL_COUNT` | Optional | Subscription cycle count |
 | `AUTH_TOKEN_SECRET` | Yes | Secret used for login tokens |
 | `AUTH_TOKEN_TTL_SECONDS` | Yes | Login token lifetime in seconds |
+| `DATABASE_URL` | Yes | Database connection URL for users and subscriptions |
 
 Beginner minimum backend variables:
 
@@ -336,7 +343,22 @@ REQUEST_TIMEOUT_SECONDS=15
 AUTH_TOKEN_SECRET=roadsense_login_secret_2026_make_it_long
 AUTH_TOKEN_TTL_SECONDS=86400
 RAZORPAY_PRIME_TOTAL_COUNT=12
+DATABASE_URL=sqlite:///./roadsense.db
 ```
+
+Local database:
+
+```txt
+DATABASE_URL=sqlite:///./roadsense.db
+```
+
+Render PostgreSQL database:
+
+```txt
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+```
+
+RoadSense automatically creates the `users` table on backend startup.
 
 ### Frontend Environment Variables
 
@@ -356,6 +378,7 @@ Render value:
 
 ```txt
 VITE_BACKEND_URL=https://your-backend-service.onrender.com
+
 ```
 
 ## Local Setup
@@ -435,9 +458,19 @@ RAZORPAY_KEY_ID=your_razorpay_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret
 RAZORPAY_PRIME_PLAN_ID=your_razorpay_plan_id
 RAZORPAY_PRIME_TOTAL_COUNT=12
+DATABASE_URL=your_render_postgresql_external_database_url
 ```
 
 TomTom and Razorpay variables can be left empty if you want demo mode.
+
+For permanent login storage on Render:
+
+1. Create a PostgreSQL database in Render.
+2. Copy its External Database URL.
+3. Add it to backend environment variables as `DATABASE_URL`.
+4. Redeploy the backend.
+
+Without PostgreSQL on Render, local SQLite can work for development but is not ideal for production persistence.
 
 ### Frontend on Render as Static Site
 
@@ -544,11 +577,12 @@ Use this flow during a hackathon presentation:
 - Razorpay API is optional for demo mode.
 - Current frontend road damage detection is map-based and does not require image upload.
 - Backend has a road damage image endpoint that can be expanded later.
-- For production, replace in-memory users with a real database.
+- User accounts are stored in a database through SQLAlchemy.
+- Local development uses SQLite by default.
+- Render production should use PostgreSQL through `DATABASE_URL`.
 
 ## Future Improvements
 
-- Add PostgreSQL or MongoDB for persistent users
 - Add Razorpay webhook verification
 - Add admin dashboard
 - Add real municipal parking datasets

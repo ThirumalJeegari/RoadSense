@@ -3,7 +3,8 @@ uvicorn[standard]
 httpx
 python-dotenv
 python-multipart
+SQLAlchemy
+psycopg2-binary
 pillow
 numpy
 opencv-python-headless
-

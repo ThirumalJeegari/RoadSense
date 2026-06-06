@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.schemas import HealthResponse
 from app.services.auth import activate_prime_user, login_user, signup_user, user_from_authorization
+from app.services.database import init_db
 from app.services.geo import search_india_locations
 from app.services.india_locations import list_india_locations
 from app.services.parking import parking_snapshot
@@ -33,6 +34,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    init_db()
 
 
 @app.get("/", include_in_schema=False)

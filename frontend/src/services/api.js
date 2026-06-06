@@ -6,14 +6,23 @@ export function getInitialBackendUrl() {
 
 async function request(baseUrl, path, options = {}) {
   const { token, headers, ...fetchOptions } = options;
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(headers || {}),
-    },
-    ...fetchOptions,
-  });
+  const url = `${baseUrl.replace(/\/$/, "")}${path}`;
+  let response;
+
+  try {
+    response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(headers || {}),
+      },
+      ...fetchOptions,
+    });
+  } catch (error) {
+    throw new Error(
+      `Cannot connect to backend at ${baseUrl}. Check VITE_BACKEND_URL, backend deployment, and CORS settings.`,
+    );
+  }
 
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;

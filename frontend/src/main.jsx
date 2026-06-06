@@ -398,7 +398,6 @@ function DamageTable({ detections }) {
 }
 
 function AccountPanel({ auth, onLogin, onLogout, loading }) {
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -407,7 +406,7 @@ function AccountPanel({ auth, onLogin, onLogout, loading }) {
     event.preventDefault();
     setError("");
     try {
-      await onLogin({ name, email, password });
+      await onLogin({ email, password });
       setPassword("");
     } catch (loginError) {
       setError(loginError.message);
@@ -443,7 +442,6 @@ function AccountPanel({ auth, onLogin, onLogout, loading }) {
         </div>
       </div>
       <form className="login-form" onSubmit={submit}>
-        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name" />
         <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" />
         <input
           type="password"

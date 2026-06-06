@@ -8,10 +8,10 @@ import re
 import time
 
 from app.core.config import get_settings
+from app.services.database import SessionLocal, User
 
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-_USERS: dict[str, dict] = {}
 
 
 def login_user(payload: dict) -> dict:
@@ -19,13 +19,14 @@ def login_user(payload: dict) -> dict:
     password = str(payload.get("password", ""))
 
     _validate_credentials(email, password)
-    saved_user = _USERS.get(email)
-    if not saved_user:
-        raise ValueError("Account not found. Please sign up first.")
-    if not hmac.compare_digest(saved_user["password_hash"], _password_hash(password)):
-        raise ValueError("Invalid email or password.")
+    with SessionLocal() as session:
+        saved_user = session.query(User).filter(User.email == email).one_or_none()
+        if not saved_user:
+            raise ValueError("Account not found. Please sign up first.")
+        if not hmac.compare_digest(saved_user.password_hash, _password_hash(password)):
+            raise ValueError("Invalid email or password.")
 
-    user = _user_payload(saved_user)
+        user = _user_payload(saved_user)
     return _auth_response(user)
 
 
@@ -37,19 +38,27 @@ def signup_user(payload: dict) -> dict:
     if len(name) < 2:
         raise ValueError("Enter your name.")
     _validate_credentials(email, password)
-    if email in _USERS:
-        raise ValueError("Account already exists. Please login.")
-    _USERS[email] = {
-        "name": name[:80],
-        "email": email,
-        "password_hash": _password_hash(password),
-        "role": "operator",
-        "plan": "free",
-        "subscription_status": "inactive",
-        "subscription_mode": "",
-        "subscription_id": "",
-    }
-    user = _user_payload(_USERS[email])
+
+    with SessionLocal() as session:
+        existing_user = session.query(User).filter(User.email == email).one_or_none()
+        if existing_user:
+            raise ValueError("Account already exists. Please login.")
+
+        saved_user = User(
+            name=name[:80],
+            email=email,
+            password_hash=_password_hash(password),
+            role="operator",
+            plan="free",
+            subscription_status="inactive",
+            subscription_mode="",
+            subscription_id="",
+            updated_at=int(time.time()),
+        )
+        session.add(saved_user)
+        session.commit()
+        session.refresh(saved_user)
+        user = _user_payload(saved_user)
     return _auth_response(user)
 
 
@@ -60,25 +69,26 @@ def activate_prime_user(authorization: str | None, subscription: dict | None = N
         raise ValueError("Login required to activate Prime.")
 
     subscription = subscription or {}
-    saved_user = _USERS.setdefault(
-        email,
-        {
-            "name": user.get("name") or _name_from_email(email),
-            "email": email,
-            "password_hash": "",
-            "role": user.get("role", "operator"),
-        },
-    )
-    saved_user.update(
-        {
-            "plan": "prime",
-            "subscription_status": "active",
-            "subscription_mode": subscription.get("mode", "demo"),
-            "subscription_id": subscription.get("subscription_id", ""),
-            "prime_activated_at": int(time.time()),
-        }
-    )
-    return _auth_response(_user_payload(saved_user))
+    with SessionLocal() as session:
+        saved_user = session.query(User).filter(User.email == email).one_or_none()
+        if not saved_user:
+            saved_user = User(
+                name=user.get("name") or _name_from_email(email),
+                email=email,
+                password_hash="",
+                role=user.get("role", "operator"),
+            )
+            session.add(saved_user)
+
+        saved_user.plan = "prime"
+        saved_user.subscription_status = "active"
+        saved_user.subscription_mode = subscription.get("mode", "demo")
+        saved_user.subscription_id = subscription.get("subscription_id", "")
+        saved_user.prime_activated_at = int(time.time())
+        saved_user.updated_at = int(time.time())
+        session.commit()
+        session.refresh(saved_user)
+        return _auth_response(_user_payload(saved_user))
 
 
 def _validate_credentials(email: str, password: str) -> None:
@@ -89,6 +99,18 @@ def _validate_credentials(email: str, password: str) -> None:
 
 
 def _user_payload(record: dict) -> dict:
+    if isinstance(record, User):
+        return {
+            "name": (record.name or _name_from_email(record.email))[:80],
+            "email": record.email,
+            "role": record.role or "operator",
+            "plan": record.plan or "free",
+            "subscription_status": record.subscription_status or "inactive",
+            "subscription_mode": record.subscription_mode or "",
+            "subscription_id": record.subscription_id or "",
+            "prime_activated_at": record.prime_activated_at,
+        }
+
     email = str(record.get("email", "")).strip().lower()
     return {
         "name": (record.get("name") or _name_from_email(email))[:80],
@@ -134,8 +156,9 @@ def user_from_authorization(authorization: str | None) -> dict:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise ValueError("Missing login token.")
     user = verify_token(authorization.split(" ", 1)[1].strip())
-    saved_user = _USERS.get(str(user.get("email", "")).strip().lower())
-    return _user_payload(saved_user) if saved_user else user
+    with SessionLocal() as session:
+        saved_user = session.query(User).filter(User.email == str(user.get("email", "")).strip().lower()).one_or_none()
+        return _user_payload(saved_user) if saved_user else user
 
 
 def verify_token(token: str) -> dict:

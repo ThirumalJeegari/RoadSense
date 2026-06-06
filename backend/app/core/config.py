@@ -23,6 +23,7 @@ class Settings:
     razorpay_prime_total_count: int = int(os.getenv("RAZORPAY_PRIME_TOTAL_COUNT", "12"))
     auth_token_secret: str = os.getenv("AUTH_TOKEN_SECRET", "roadsense-dev-secret-change-me")
     auth_token_ttl_seconds: int = int(os.getenv("AUTH_TOKEN_TTL_SECONDS", "86400"))
+    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./roadsense.db")
     cors_origins: tuple[str, ...] = tuple(
         origin.strip()
         for origin in os.getenv(
