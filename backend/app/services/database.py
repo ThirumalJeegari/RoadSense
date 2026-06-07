@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, Text, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.core.config import get_settings
@@ -46,6 +46,31 @@ class User(Base):
     prime_activated_at = Column(Integer, nullable=True)
     created_at = Column(Integer, nullable=False, default=lambda: int(time.time()))
     updated_at = Column(Integer, nullable=False, default=lambda: int(time.time()))
+
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    phone = Column(String(40), nullable=False, default="")
+    organization = Column(String(120), nullable=False, default="")
+    designation = Column(String(120), nullable=False, default="")
+    city = Column(String(120), nullable=False, default="")
+    avatar_data_url = Column(Text, nullable=False, default="")
+    created_at = Column(Integer, nullable=False, default=lambda: int(time.time()))
+    updated_at = Column(Integer, nullable=False, default=lambda: int(time.time()))
+
+
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), index=True, nullable=False)
+    code_hash = Column(String(128), nullable=False)
+    expires_at = Column(Integer, nullable=False)
+    used_at = Column(Integer, nullable=True)
+    created_at = Column(Integer, nullable=False, default=lambda: int(time.time()))
 
 
 def init_db() -> None:

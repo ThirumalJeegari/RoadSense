@@ -81,3 +81,49 @@ async def create_prime_subscription(customer: dict | None = None) -> dict:
         "subscription_id": subscription.get("id"),
         "short_url": subscription.get("short_url"),
     }
+
+
+async def fetch_prime_subscription(subscription_id: str) -> dict:
+    settings = get_settings()
+    status = prime_plan_status()
+    subscription_id = str(subscription_id or "").strip()
+
+    if not subscription_id:
+        raise ValueError("No Razorpay subscription id found for this account.")
+
+    if not status["configured"]:
+        return {
+            **status,
+            "mode": "demo",
+            "payment_status": "not_configured",
+            "subscription_id": subscription_id,
+            "message": "Add Razorpay key id, key secret, and Prime plan id to verify live payments.",
+        }
+
+    async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
+        response = await client.get(
+            f"{RAZORPAY_SUBSCRIPTIONS_URL}/{subscription_id}",
+            auth=(settings.razorpay_key_id, settings.razorpay_key_secret),
+        )
+
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        try:
+            detail = response.json()
+        except ValueError:
+            detail = response.text
+        raise RuntimeError(f"Razorpay subscription status error: {detail}") from exc
+
+    subscription = response.json()
+    return {
+        **status,
+        "mode": "live",
+        "payment_status": subscription.get("status"),
+        "subscription_id": subscription.get("id") or subscription_id,
+        "short_url": subscription.get("short_url"),
+        "current_start": subscription.get("current_start"),
+        "current_end": subscription.get("current_end"),
+        "paid_count": subscription.get("paid_count"),
+        "remaining_count": subscription.get("remaining_count"),
+    }

@@ -8,12 +8,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.schemas import HealthResponse
-from app.services.auth import activate_prime_user, login_user, signup_user, user_from_authorization
+from app.services.auth import (
+    activate_prime_user,
+    login_user,
+    request_password_reset,
+    reset_password_user,
+    signup_user,
+    update_profile_user,
+    update_prime_subscription_user,
+    user_from_authorization,
+)
 from app.services.database import init_db
 from app.services.geo import search_india_locations
 from app.services.india_locations import list_india_locations
 from app.services.parking import parking_snapshot
-from app.services.payments import create_prime_subscription, prime_plan_status
+from app.services.payments import create_prime_subscription, fetch_prime_subscription, prime_plan_status
 from app.services.road_damage import analyze_road_image
 from app.services.traffic import traffic_route, traffic_snapshot
 from app.services.weather import current_weather
@@ -67,12 +76,43 @@ async def signup(payload: Optional[dict] = Body(default=None)) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.post(f"{settings.api_prefix}/auth/forgot-password")
+async def forgot_password(payload: Optional[dict] = Body(default=None)) -> dict:
+    try:
+        return request_password_reset(payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Could not send reset email: {exc}") from exc
+
+
+@app.post(f"{settings.api_prefix}/auth/reset-password")
+async def reset_password(payload: Optional[dict] = Body(default=None)) -> dict:
+    try:
+        return reset_password_user(payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get(f"{settings.api_prefix}/auth/me")
 async def me(authorization: Optional[str] = Header(default=None)) -> dict:
     try:
         return {"user": user_from_authorization(authorization)}
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+@app.put(f"{settings.api_prefix}/auth/profile")
+async def update_profile(
+    payload: Optional[dict] = Body(default=None),
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    try:
+        return update_profile_user(authorization, payload or {})
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 401 if "token" in message.lower() or "login" in message.lower() else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
 
 
 @app.post(f"{settings.api_prefix}/auth/logout")
@@ -100,9 +140,38 @@ async def prime_subscription(
                 "email": customer.get("email") or user.get("email"),
                 "account_email": user.get("email"),
             }
-        return await create_prime_subscription(customer)
+        result = await create_prime_subscription(customer)
+        if authorization and result.get("subscription_id"):
+            auth_result = update_prime_subscription_user(authorization, result)
+            return {**result, **auth_result}
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post(f"{settings.api_prefix}/subscriptions/prime/sync")
+async def sync_prime_subscription(
+    payload: Optional[dict] = Body(default=None),
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    try:
+        user = user_from_authorization(authorization)
+        body = payload or {}
+        subscription_id = str(
+            body.get("subscription_id") or user.get("subscription_id") or "",
+        ).strip()
+        if not subscription_id:
+            raise ValueError("No Razorpay subscription found for this account. Create the Prime checkout link first.")
+
+        result = await fetch_prime_subscription(subscription_id)
+        auth_result = update_prime_subscription_user(authorization, result)
+        return {**result, **auth_result}
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 401 if "token" in message.lower() or "login" in message.lower() else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

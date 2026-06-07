@@ -56,8 +56,30 @@ export function signup(baseUrl, payload) {
   });
 }
 
+export function forgotPassword(baseUrl, payload) {
+  return request(baseUrl, "/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function resetPassword(baseUrl, payload) {
+  return request(baseUrl, "/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getMe(baseUrl, token) {
   return request(baseUrl, "/api/auth/me", { token });
+}
+
+export function updateProfile(baseUrl, payload, token) {
+  return request(baseUrl, "/api/auth/profile", {
+    method: "PUT",
+    token,
+    body: JSON.stringify(payload),
+  });
 }
 
 export function logout(baseUrl, token) {
@@ -89,6 +111,14 @@ export function createPrimeSubscription(baseUrl, payload, token) {
     method: "POST",
     token,
     body: JSON.stringify(payload),
+  });
+}
+
+export function syncPrimeSubscription(baseUrl, token, subscriptionId = "") {
+  return request(baseUrl, "/api/subscriptions/prime/sync", {
+    method: "POST",
+    token,
+    body: JSON.stringify(subscriptionId ? { subscription_id: subscriptionId } : {}),
   });
 }
 

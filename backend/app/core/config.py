@@ -23,6 +23,14 @@ class Settings:
     razorpay_prime_total_count: int = int(os.getenv("RAZORPAY_PRIME_TOTAL_COUNT", "12"))
     auth_token_secret: str = os.getenv("AUTH_TOKEN_SECRET", "roadsense-dev-secret-change-me")
     auth_token_ttl_seconds: int = int(os.getenv("AUTH_TOKEN_TTL_SECONDS", "86400"))
+    password_hash_secret: str = os.getenv("PASSWORD_HASH_SECRET", "roadsense-password-hash-secret-change-me")
+    password_reset_code_ttl_seconds: int = int(os.getenv("PASSWORD_RESET_CODE_TTL_SECONDS", "900"))
+    smtp_host: str = os.getenv("SMTP_HOST", "")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
+    smtp_username: str = os.getenv("SMTP_USERNAME", "")
+    smtp_password: str = os.getenv("SMTP_PASSWORD", "")
+    smtp_from_email: str = os.getenv("SMTP_FROM_EMAIL", "")
+    smtp_use_tls: bool = os.getenv("SMTP_USE_TLS", "true").strip().lower() in {"1", "true", "yes", "on"}
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./roadsense.db")
     cors_origins: tuple[str, ...] = tuple(
         origin.strip()

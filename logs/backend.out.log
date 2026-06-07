@@ -1,4 +1,10 @@
-INFO:     127.0.0.1:53638 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54171 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54172 - "GET /api/location-search?q=Mumb&limit=3 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54170 - "GET /api/traffic-route?start=Mumb&end=Pune HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64236 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64106 - "POST /api/auth/signup HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64106 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54420 - "OPTIONS /api/india-locations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64031 - "OPTIONS /api/india-locations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54420 - "GET /api/india-locations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54420 - "GET /api/india-locations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65267 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54408 - "GET /api/traffic-route?start=MG+Road%2C+Bengaluru&end=Indiranagar%2C+Bengaluru HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56248 - "GET /api/parking?provider=india&city=Commercial+Street%2C+Bengaluru&limit=160 HTTP/1.1" 200 OK

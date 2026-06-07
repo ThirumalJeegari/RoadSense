@@ -3,15 +3,22 @@ import { createRoot } from "react-dom/client";
 import {
   Activity,
   AlertTriangle,
+  Briefcase,
   Building2,
+  Camera,
+  ChevronDown,
   Construction,
   Crown,
   LogIn,
   LogOut,
+  MapPin,
   Navigation,
   ParkingCircle,
+  Phone,
   RefreshCcw,
   Route,
+  Save,
+  Settings as SettingsIcon,
   ShieldCheck,
   UserCircle,
 } from "lucide-react";
@@ -19,6 +26,7 @@ import MapPanel from "./components/MapPanel.jsx";
 import {
   activatePrimeDemo,
   createPrimeSubscription,
+  forgotPassword,
   getMe,
   getIndiaLocations,
   getInitialBackendUrl,
@@ -28,6 +36,9 @@ import {
   logout,
   searchIndiaLocations,
   signup,
+  syncPrimeSubscription,
+  resetPassword,
+  updateProfile,
 } from "./services/api.js";
 import { routeDamageReport } from "./utils/roadDamage.js";
 import "./styles.css";
@@ -48,7 +59,7 @@ const tabs = [
   { id: "damage", label: "Road Damage Detection", icon: Construction },
 ];
 
-const pages = ["home", "dashboard", "login", "signup", "subscription"];
+const pages = ["home", "dashboard", "login", "signup", "subscription", "profile", "settings"];
 
 const primeFeatureLabels = [
   "Predictive traffic risk",
@@ -96,9 +107,29 @@ function profileValue(value, fallback = "Not set") {
 
 function titleValue(value) {
   return profileValue(value)
+    .replace(/[_-]+/g, " ")
     .split(" ")
     .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : part))
     .join(" ");
+}
+
+function userInitials(user) {
+  const source = profileValue(user?.name || user?.email, "RS");
+  return source
+    .split(/[\s.@_-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "RS";
+}
+
+function UserAvatar({ user, size = "medium" }) {
+  const photo = user?.avatar_data_url || "";
+  return (
+    <span className={`user-avatar user-avatar-${size}`}>
+      {photo ? <img src={photo} alt={profileValue(user?.name, "Profile")} /> : <strong>{userInitials(user)}</strong>}
+    </span>
+  );
 }
 
 function locationOptionLabel(location) {
@@ -397,9 +428,17 @@ function DamageTable({ detections }) {
   );
 }
 
-function AccountPanel({ auth, onLogin, onLogout, loading }) {
+function AccountPanel({ auth, onLogin, onLogout, onForgotPassword, onResetPassword, loading }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [mode, setMode] = useState("login");
+  const [resetRequested, setResetRequested] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+  const [demoResetCode, setDemoResetCode] = useState("");
   const [error, setError] = useState("");
 
   async function submit(event) {
@@ -413,11 +452,58 @@ function AccountPanel({ auth, onLogin, onLogout, loading }) {
     }
   }
 
+  async function requestReset(event) {
+    event.preventDefault();
+    setError("");
+    setResetMessage("");
+    setDemoResetCode("");
+    try {
+      const response = await onForgotPassword({ email: resetEmail || email });
+      setResetRequested(true);
+      setResetMessage(response.message || "Reset code sent.");
+      setDemoResetCode(response.reset_code || "");
+      if (!resetEmail && email) {
+        setResetEmail(email);
+      }
+    } catch (resetError) {
+      setError(resetError.message);
+    }
+  }
+
+  async function resetPasswordSubmit(event) {
+    event.preventDefault();
+    setError("");
+    if (newPassword !== confirmNewPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    try {
+      await onResetPassword({
+        email: resetEmail || email,
+        code: resetCode,
+        password: newPassword,
+      });
+      setPassword("");
+      setResetCode("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+    } catch (resetError) {
+      setError(resetError.message);
+    }
+  }
+
+  function openForgotPassword() {
+    setMode("forgot");
+    setResetEmail(email);
+    setError("");
+    setResetMessage("");
+  }
+
   if (auth?.user) {
     return (
       <section className="account-card">
         <div className="account-title">
-          <UserCircle size={18} />
+          <UserAvatar user={auth.user} />
           <div>
             <h3>{auth.user.name}</h3>
             <p>{auth.user.email}</p>
@@ -428,6 +514,65 @@ function AccountPanel({ auth, onLogin, onLogout, loading }) {
           <LogOut size={16} />
           Log out
         </button>
+      </section>
+    );
+  }
+
+  if (mode === "forgot") {
+    return (
+      <section className="account-card">
+        <div className="account-title">
+          <ShieldCheck size={18} />
+          <div>
+            <h3>Forgot Password</h3>
+            <p>Reset with your account email</p>
+          </div>
+        </div>
+        <form className="login-form" onSubmit={requestReset}>
+          <input
+            value={resetEmail}
+            onChange={(event) => setResetEmail(event.target.value)}
+            placeholder="Registered email address"
+          />
+          <button className="primary-button" type="submit" disabled={loading}>
+            {loading ? "Sending code..." : "Send Reset Code"}
+          </button>
+        </form>
+        {resetRequested ? (
+          <form className="login-form reset-form" onSubmit={resetPasswordSubmit}>
+            {demoResetCode ? (
+              <p className="reset-code-card">
+                Demo reset code: <strong>{demoResetCode}</strong>
+              </p>
+            ) : null}
+            {resetMessage ? <p className="mini-warning success-text">{resetMessage}</p> : null}
+            <input
+              value={resetCode}
+              onChange={(event) => setResetCode(event.target.value)}
+              placeholder="6 digit reset code"
+              inputMode="numeric"
+            />
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="New password"
+            />
+            <input
+              type="password"
+              value={confirmNewPassword}
+              onChange={(event) => setConfirmNewPassword(event.target.value)}
+              placeholder="Confirm new password"
+            />
+            <button className="primary-button" type="submit" disabled={loading}>
+              {loading ? "Resetting..." : "Reset Password & Login"}
+            </button>
+          </form>
+        ) : null}
+        <button className="text-button" type="button" onClick={() => setMode("login")}>
+          Back to login
+        </button>
+        {error ? <p className="mini-error">{error}</p> : null}
       </section>
     );
   }
@@ -453,6 +598,9 @@ function AccountPanel({ auth, onLogin, onLogout, loading }) {
           {loading ? "Logging in..." : "Login"}
         </button>
       </form>
+      <button className="text-button" type="button" onClick={openForgotPassword}>
+        Forgot password?
+      </button>
       {error ? <p className="mini-error">{error}</p> : null}
     </section>
   );
@@ -534,8 +682,12 @@ function SignupPanel({ auth, onSignup, loading, onGoLogin }) {
 
 function PrimePanel({ backendUrl, auth, onAuthUpdate }) {
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState(null);
   const isPrime = auth?.user?.plan === "prime";
+  const subscriptionId = result?.subscription_id || auth?.user?.subscription_id || "";
+  const statusLabel = titleValue(result?.payment_status || auth?.user?.subscription_status || "inactive");
+  const canSyncSubscription = Boolean(auth?.token && subscriptionId && !isPrime);
 
   async function subscribe() {
     if (!auth?.user) {
@@ -545,20 +697,53 @@ function PrimePanel({ backendUrl, auth, onAuthUpdate }) {
     setLoading(true);
     setResult(null);
     try {
-      setResult(
-        await createPrimeSubscription(
-          backendUrl,
-          {
-            name: auth.user.name,
-            email: auth.user.email,
-          },
-          auth.token,
-        ),
+      const response = await createPrimeSubscription(
+        backendUrl,
+        {
+          name: auth.user.name,
+          email: auth.user.email,
+        },
+        auth.token,
       );
+      if (response.user) {
+        onAuthUpdate(response);
+      }
+      setResult(response);
     } catch (error) {
       setResult({ error: error.message });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function refreshPrimeStatus() {
+    if (!auth?.token) {
+      setResult({ error: "Login before checking Prime status." });
+      return;
+    }
+    if (!subscriptionId) {
+      setResult({ error: "Create the Razorpay checkout link first, then refresh payment status." });
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      const response = await syncPrimeSubscription(backendUrl, auth.token, subscriptionId);
+      if (response.user) {
+        onAuthUpdate(response);
+      }
+      setResult({
+        ...response,
+        activated: response.user?.plan === "prime",
+        message:
+          response.user?.plan === "prime"
+            ? "Prime payment verified. Subscriber features are active."
+            : `Payment status is ${titleValue(response.payment_status || "pending")}.`,
+      });
+    } catch (error) {
+      setResult({ error: error.message });
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -596,12 +781,18 @@ function PrimePanel({ backendUrl, auth, onAuthUpdate }) {
       </div>
       {isPrime ? <div className="account-badge">Prime subscriber</div> : null}
       {!isPrime ? (
-        <button className="primary-button" onClick={subscribe} disabled={loading || !auth?.user}>
+        <button className="primary-button" onClick={subscribe} disabled={loading || syncing || !auth?.user}>
           {loading ? "Creating link..." : "Subscribe with Razorpay"}
         </button>
       ) : null}
+      {canSyncSubscription ? (
+        <button className="secondary-button" onClick={refreshPrimeStatus} disabled={loading || syncing}>
+          <RefreshCcw size={16} />
+          {syncing ? "Checking payment..." : "Refresh Prime Status"}
+        </button>
+      ) : null}
       {!isPrime && auth?.user ? (
-        <button className="secondary-button" onClick={activateDemo} disabled={loading}>
+        <button className="secondary-button" onClick={activateDemo} disabled={loading || syncing}>
           <ShieldCheck size={16} />
           Activate Prime Demo
         </button>
@@ -612,6 +803,11 @@ function PrimePanel({ backendUrl, auth, onAuthUpdate }) {
         </a>
       ) : null}
       {result?.activated ? <p className="mini-warning">{result.message}</p> : null}
+      {!isPrime && auth?.user ? (
+        <p className="mini-warning">
+          Status: {statusLabel}. After Razorpay payment, refresh Prime status here.
+        </p>
+      ) : null}
       {!auth?.user ? <p className="mini-warning">Login to continue with Prime.</p> : null}
       {result?.mode === "demo" ? (
         <p className="mini-warning">Add Razorpay keys and Prime plan ID in Render for live payments.</p>
@@ -621,7 +817,16 @@ function PrimePanel({ backendUrl, auth, onAuthUpdate }) {
   );
 }
 
-function LoginPage({ auth, onLogin, onLogout, loading, onGoSignup, onGoSubscription }) {
+function LoginPage({
+  auth,
+  onLogin,
+  onLogout,
+  onForgotPassword,
+  onResetPassword,
+  loading,
+  onGoSignup,
+  onGoSubscription,
+}) {
   return (
     <section className="page-grid">
       <div className="page-card login-hero-card">
@@ -637,7 +842,14 @@ function LoginPage({ auth, onLogin, onLogout, loading, onGoSignup, onGoSubscript
           </button>
         ) : null}
       </div>
-      <AccountPanel auth={auth} onLogin={onLogin} onLogout={onLogout} loading={loading} />
+      <AccountPanel
+        auth={auth}
+        onLogin={onLogin}
+        onLogout={onLogout}
+        onForgotPassword={onForgotPassword}
+        onResetPassword={onResetPassword}
+        loading={loading}
+      />
       {!auth?.user ? (
         <button className="text-button page-switch-link" type="button" onClick={onGoSignup}>
           New here? Create account
@@ -698,6 +910,223 @@ function SubscriptionPage({ backendUrl, auth, onGoLogin, onAuthUpdate }) {
   );
 }
 
+function ProfilePage({ auth, onGoDashboard, onGoSettings, onGoLogin, onLogout, loading }) {
+  if (!auth?.user) {
+    return (
+      <AccessRequiredPage
+        onGoLogin={onGoLogin}
+        onGoSignup={() => navigateToPage("signup")}
+      />
+    );
+  }
+
+  const user = auth.user;
+  const profileRows = [
+    ["Name", profileValue(user.name)],
+    ["Email", profileValue(user.email)],
+    ["Phone", profileValue(user.phone)],
+    ["Organization", profileValue(user.organization)],
+    ["Designation", profileValue(user.designation)],
+    ["City / Ward", profileValue(user.city)],
+    ["Plan", `${titleValue(user.plan || "free")} plan`],
+    ["Subscription", titleValue(user.subscription_status || "inactive")],
+  ];
+
+  return (
+    <section className="page-grid profile-page-grid">
+      <div className="page-card profile-hero-card">
+        <UserAvatar user={user} size="hero" />
+        <span className="page-kicker">Operator Profile</span>
+        <h3>{profileValue(user.name, "RoadSense Operator")}</h3>
+        <p>
+          Manage your RoadSense identity, contact details, organization, and profile photo.
+        </p>
+        <div className="welcome-actions">
+          <button className="primary-button compact-button" onClick={onGoSettings}>
+            <SettingsIcon size={16} />
+            Edit Profile
+          </button>
+          <button className="secondary-button compact-button" onClick={onGoDashboard}>
+            <Route size={16} />
+            Dashboard
+          </button>
+        </div>
+      </div>
+      <div className="side-stack">
+        <DataPanel
+          title="Profile Data"
+          rows={profileRows}
+          note="These details are saved to your RoadSense account."
+        />
+        <section className="account-card profile-action-card">
+          <div className="account-title">
+            <ShieldCheck size={18} />
+            <div>
+              <h3>Account Access</h3>
+              <p>{user.email}</p>
+            </div>
+          </div>
+          <div className="prime-features">
+            <span>{titleValue(user.role || "operator")}</span>
+            <span>{titleValue(user.plan || "free")} plan</span>
+          </div>
+          <button className="secondary-button" onClick={onLogout} disabled={loading}>
+            <LogOut size={16} />
+            Log out
+          </button>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function SettingsPage({ backendUrl, auth, onAuthUpdate, onGoLogin, onGoProfile }) {
+  const user = auth?.user;
+  const [name, setName] = useState(user?.name || "");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [organization, setOrganization] = useState(user?.organization || "");
+  const [designation, setDesignation] = useState(user?.designation || "");
+  const [city, setCity] = useState(user?.city || "");
+  const [avatarDataUrl, setAvatarDataUrl] = useState(user?.avatar_data_url || "");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setName(user?.name || "");
+    setPhone(user?.phone || "");
+    setOrganization(user?.organization || "");
+    setDesignation(user?.designation || "");
+    setCity(user?.city || "");
+    setAvatarDataUrl(user?.avatar_data_url || "");
+  }, [user?.email, user?.name, user?.phone, user?.organization, user?.designation, user?.city, user?.avatar_data_url]);
+
+  if (!user) {
+    return (
+      <AccessRequiredPage
+        onGoLogin={onGoLogin}
+        onGoSignup={() => navigateToPage("signup")}
+      />
+    );
+  }
+
+  async function choosePhoto(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setError("");
+    setMessage("");
+    if (!file.type.startsWith("image/")) {
+      setError("Upload an image file for the profile photo.");
+      return;
+    }
+    if (file.size > 650_000) {
+      setError("Use a smaller photo under 650 KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setAvatarDataUrl(String(reader.result || ""));
+    reader.onerror = () => setError("Could not read the selected photo.");
+    reader.readAsDataURL(file);
+  }
+
+  async function saveProfile(event) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      const response = await updateProfile(
+        backendUrl,
+        {
+          name,
+          phone,
+          organization,
+          designation,
+          city,
+          avatar_data_url: avatarDataUrl,
+        },
+        auth.token,
+      );
+      onAuthUpdate(response);
+      setMessage("Profile updated successfully.");
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const previewUser = { ...user, name, phone, organization, designation, city, avatar_data_url: avatarDataUrl };
+
+  return (
+    <section className="page-grid settings-page-grid">
+      <div className="page-card settings-hero-card">
+        <UserAvatar user={previewUser} size="hero" />
+        <span className="page-kicker">Settings</span>
+        <h3>Update your profile details</h3>
+        <p>
+          Add a professional photo and operator details that appear in the RoadSense header and profile page.
+        </p>
+        <button className="secondary-button compact-button" onClick={onGoProfile}>
+          <UserCircle size={16} />
+          View Profile
+        </button>
+      </div>
+      <section className="account-card settings-form-card">
+        <div className="account-title">
+          <SettingsIcon size={18} />
+          <div>
+            <h3>Profile Settings</h3>
+            <p>Saved to your account</p>
+          </div>
+        </div>
+        <form className="settings-form" onSubmit={saveProfile}>
+          <label>
+            Full name
+            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" />
+          </label>
+          <label>
+            Phone
+            <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+91 phone number" />
+          </label>
+          <label>
+            Organization
+            <input value={organization} onChange={(event) => setOrganization(event.target.value)} placeholder="City department or company" />
+          </label>
+          <label>
+            Designation
+            <input value={designation} onChange={(event) => setDesignation(event.target.value)} placeholder="Traffic officer, operator, admin" />
+          </label>
+          <label>
+            City / Ward
+            <input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Bengaluru Ward 76" />
+          </label>
+          <label>
+            Profile photo
+            <span className="photo-upload-row">
+              <input type="file" accept="image/*" onChange={choosePhoto} />
+              <Camera size={17} />
+            </span>
+          </label>
+          <div className="settings-actions">
+            <button className="primary-button" type="submit" disabled={saving}>
+              <Save size={16} />
+              {saving ? "Saving..." : "Save Profile"}
+            </button>
+            {avatarDataUrl ? (
+              <button className="secondary-button" type="button" onClick={() => setAvatarDataUrl("")} disabled={saving}>
+                Remove Photo
+              </button>
+            ) : null}
+          </div>
+        </form>
+        {message ? <p className="mini-warning success-text">{message}</p> : null}
+        {error ? <p className="mini-error">{error}</p> : null}
+      </section>
+    </section>
+  );
+}
+
 function AccessRequiredPage({ onGoLogin, onGoSignup }) {
   return (
     <section className="page-grid">
@@ -744,6 +1173,10 @@ function HomePage({ auth, onGoDashboard, onGoSignup, onGoSubscription, onLogout,
     ? [
         ["Name", profileValue(auth.user.name)],
         ["Email", profileValue(auth.user.email)],
+        ["Phone", profileValue(auth.user.phone)],
+        ["Organization", profileValue(auth.user.organization)],
+        ["Designation", profileValue(auth.user.designation)],
+        ["City / Ward", profileValue(auth.user.city)],
         ["Role", titleValue(auth.user.role || "operator")],
         ["Plan", `${titleValue(auth.user.plan || "free")} plan`],
         ["Subscription", titleValue(auth.user.subscription_status || "inactive")],
@@ -781,13 +1214,17 @@ function HomePage({ auth, onGoDashboard, onGoSignup, onGoSubscription, onLogout,
             />
             <section className="account-card profile-action-card">
               <div className="account-title">
-                <UserCircle size={18} />
+                <UserAvatar user={auth.user} />
                 <div>
                   <h3>{auth.user.name}</h3>
                   <p>{auth.user.email}</p>
                 </div>
               </div>
               <div className="account-badge">Authenticated operator</div>
+              <button className="secondary-button" onClick={() => navigateToPage("settings")}>
+                <SettingsIcon size={16} />
+                Edit profile
+              </button>
               <button className="secondary-button" onClick={onLogout} disabled={loading}>
                 <LogOut size={16} />
                 Log out
@@ -872,12 +1309,22 @@ function HomePage({ auth, onGoDashboard, onGoSignup, onGoSubscription, onLogout,
   );
 }
 
-function SiteHeader({ activePage, auth }) {
+function SiteHeader({ activePage, auth, onLogout }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const navItems = [
     ["home", "Home"],
     ["dashboard", "Dashboard"],
     ["subscription", "Subscription"],
   ];
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [activePage, auth?.user?.email]);
+
+  function openPage(page) {
+    setMenuOpen(false);
+    navigateToPage(page);
+  }
 
   return (
     <header className="site-header">
@@ -897,24 +1344,58 @@ function SiteHeader({ activePage, auth }) {
         ))}
       </nav>
       <div className="site-actions">
-        <button
-          className={
-            (auth?.user && activePage === "home") || activePage === "login"
-              ? "active text-nav-button"
-              : "text-nav-button"
-          }
-          onClick={() => navigateToPage(auth?.user ? "home" : "login")}
-        >
-          {auth?.user ? "Profile" : "Login"}
-        </button>
         {auth?.user ? (
-          <button className="nav-cta" onClick={() => navigateToPage("dashboard")}>
-            Dashboard
-          </button>
+          <div className="profile-menu-wrap">
+            <button
+              className={`profile-trigger ${["profile", "settings"].includes(activePage) ? "active" : ""}`}
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+            >
+              <UserAvatar user={auth.user} size="small" />
+              <span className="profile-trigger-text">{profileValue(auth.user.name, "Profile")}</span>
+              <ChevronDown size={15} />
+            </button>
+            {menuOpen ? (
+              <div className="profile-dropdown" role="menu">
+                <div className="profile-dropdown-head">
+                  <UserAvatar user={auth.user} />
+                  <div>
+                    <strong>{profileValue(auth.user.name, "RoadSense Operator")}</strong>
+                    <span>{auth.user.email}</span>
+                  </div>
+                </div>
+                <button type="button" onClick={() => openPage("profile")}>
+                  <UserCircle size={16} />
+                  Profile
+                </button>
+                <button type="button" onClick={() => openPage("settings")}>
+                  <SettingsIcon size={16} />
+                  Settings
+                </button>
+                <button type="button" onClick={() => openPage("subscription")}>
+                  <Crown size={16} />
+                  Subscription
+                </button>
+                <button type="button" onClick={onLogout}>
+                  <LogOut size={16} />
+                  Log out
+                </button>
+              </div>
+            ) : null}
+          </div>
         ) : (
-          <button className="nav-cta" onClick={() => navigateToPage("signup")}>
-            Sign Up
-          </button>
+          <>
+            <button
+              className={activePage === "login" ? "active text-nav-button" : "text-nav-button"}
+              onClick={() => navigateToPage("login")}
+            >
+              Login
+            </button>
+            <button className="nav-cta" onClick={() => navigateToPage("signup")}>
+              Sign Up
+            </button>
+          </>
         )}
       </div>
     </header>
@@ -1025,6 +1506,28 @@ function App() {
     setAuthLoading(true);
     try {
       const response = await signup(backendUrl, payload);
+      const nextAuth = { token: response.token, user: response.user };
+      setAuth(nextAuth);
+      saveStoredAuth(nextAuth);
+      navigateToPage("home");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleForgotPassword(payload) {
+    setAuthLoading(true);
+    try {
+      return await forgotPassword(backendUrl, payload);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleResetPassword(payload) {
+    setAuthLoading(true);
+    try {
+      const response = await resetPassword(backendUrl, payload);
       const nextAuth = { token: response.token, user: response.user };
       setAuth(nextAuth);
       saveStoredAuth(nextAuth);
@@ -1310,7 +1813,7 @@ function App() {
 
   return (
     <div className="site-shell">
-      <SiteHeader activePage={activePage} auth={auth} />
+      <SiteHeader activePage={activePage} auth={auth} onLogout={handleLogout} />
       <div className={`app-shell ${isDashboardPage ? "" : "app-shell-full"}`}>
         {isDashboardPage ? (
         <aside className="sidebar">
@@ -1707,6 +2210,8 @@ function App() {
             auth={auth}
             onLogin={handleLogin}
             onLogout={handleLogout}
+            onForgotPassword={handleForgotPassword}
+            onResetPassword={handleResetPassword}
             loading={authLoading}
             onGoSignup={() => navigateToPage("signup")}
             onGoSubscription={() => navigateToPage("subscription")}
@@ -1729,6 +2234,27 @@ function App() {
             auth={auth}
             onGoLogin={() => navigateToPage("login")}
             onAuthUpdate={handleAuthUpdate}
+          />
+        ) : null}
+
+        {activePage === "profile" ? (
+          <ProfilePage
+            auth={auth}
+            loading={authLoading}
+            onGoDashboard={() => navigateToPage("dashboard")}
+            onGoSettings={() => navigateToPage("settings")}
+            onGoLogin={() => navigateToPage("login")}
+            onLogout={handleLogout}
+          />
+        ) : null}
+
+        {activePage === "settings" ? (
+          <SettingsPage
+            backendUrl={backendUrl}
+            auth={auth}
+            onAuthUpdate={handleAuthUpdate}
+            onGoLogin={() => navigateToPage("login")}
+            onGoProfile={() => navigateToPage("profile")}
           />
         ) : null}
       </main>
